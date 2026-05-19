@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const NAV_ITEMS = [
   { to: '/', icon: '🏠', label: 'Dashboard' },
@@ -13,6 +14,7 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar() {
+  const { user, logout } = useAuth();
   return (
     <aside style={{
       width: '230px',
@@ -82,8 +84,21 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid #1E293B' }}>
-        <p style={{ margin: 0, fontSize: '0.65rem', color: '#475569', lineHeight: 1.5 }}>
+      <div style={{ padding: '0.75rem 0.75rem', borderTop: '1px solid #1E293B' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', marginBottom: '0.375rem', background: '#0F172A', borderRadius: '0.5rem' }}>
+          <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>
+            {user?.charAt(0).toUpperCase()}
+          </div>
+          <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ fontSize: '0.75rem', color: 'white', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{user}</div>
+            <div style={{ fontSize: '0.65rem', color: '#64748B' }}>Logged in</div>
+          </div>
+          <button onClick={() => { if (confirm('¿Cerrar sesión?')) logout(); }} title="Logout"
+            style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: '0.25rem' }}>
+            🚪
+          </button>
+        </div>
+        <p style={{ margin: 0, fontSize: '0.6rem', color: '#475569', lineHeight: 1.5, textAlign: 'center' }}>
           Educational use only.<br />Not financial advice.
         </p>
       </div>

@@ -69,9 +69,10 @@ export default function StockAnalyzer() {
 
   const fetchAll = useCallback(async (sym) => {
     if (!apiKey) {
-      setError('Please set your Finnhub API key in Settings first.');
+      setError('Necesitas tu API key de Finnhub. Ve a Settings y agrégala (gratis en finnhub.io/register).');
       return;
     }
+    if (!sym) return;
     setLoading(true);
     setError('');
     setData(null);
@@ -81,7 +82,8 @@ export default function StockAnalyzer() {
       const newsFrom = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const newsTo = new Date().toISOString().slice(0, 10);
 
-      const [quote, profile, metrics, candles, news] = await Promise.all([
+      // Use allSettled — if any one fails (Finnhub free tier doesn't include /candle), the others still work
+      const results = await Promise.allSettled([
         fetchQuote(sym, apiKey),
         fetchProfile(sym, apiKey),
         fetchMetrics(sym, apiKey),
@@ -89,7 +91,35 @@ export default function StockAnalyzer() {
         fetchNews(sym, newsFrom, newsTo, apiKey),
       ]);
 
-      const m = metrics?.metric || {};
+      const [qR, pR, mR, cR, nR] = results;
+      const quote = qR.status === 'fulfilled' ? qR.value : null;
+      const profile = pR.status === 'fulfilled' ? pR.value : null;
+      const metrics = mR.status === 'fulfilled' ? mR.value : null;
+      const candles = cR.status === 'fulfilled' ? cR.value : null;
+      const news = nR.status === 'fulfilled' ? nR.value : [];
+
+      // If even the basic quote fails, show error
+      if (!quote || (quote.c === 0 && quote.h === 0 && quote.l === 0)) {
+        const reason = qR.status === 'rejected' ? qR.reason : null;
+        const status = reason?.response?.status;
+        if (status === 401 || status === 403) {
+          throw new Error('API key inválida o sin permisos. Verifica tu key en Settings.');
+        }
+        if (status === 429) {
+          throw new Error('Excediste el límite de Finnhub (60 calls/min). Espera 1 minuto.');
+        }
+        throw new Error(`No se encontraron datos para "${sym}". Verifica el ticker (ej: AAPL, MSFT, TSLA).`);
+      }
+
+      // Log partial failures to console for debugging without blocking UI
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          const names = ['quote', 'profile', 'metrics', 'candles', 'news'];
+          console.warn(`[StockAnalyzer] ${names[i]} failed:`, r.reason?.message || r.reason);
+        }
+      });
+
+      const m = (metrics && metrics.metric) ? metrics.metric : {};
       const pe = m['peBasicExclExtraTTM'] ?? m['peTTM'] ?? null;
       const eps = m['epsTTM'] ?? null;
       const roe = m['roeTTM'] ?? null;
@@ -323,6 +353,11 @@ export default function StockAnalyzer() {
                 ))}
               </div>
             </div>
+            {chartData.length === 0 && (
+              <div style={{ padding: '1rem', textAlign: 'center', color: '#94A3B8', background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.2)', borderRadius: '0.5rem', fontSize: '0.8rem', lineHeight: 1.5 }}>
+                📊 El gráfico histórico no está disponible en el plan gratuito de Finnhub (cambió en 2024). Las demás funciones — precio actual, métricas, análisis y noticias — sí funcionan normalmente.
+              </div>
+            )}
             {chartData.length > 1 ? (
               <ResponsiveContainer width="100%" height={240}>
                 <LineChart data={chartData}>
